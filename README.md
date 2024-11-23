@@ -1,71 +1,74 @@
-# csharp-extract-interface README
+# **C# Extract Interface**
 
-This is the README for your extension "csharp-extract-interface". After writing up a brief description, we recommend including the following sections.
+This extension allows C# developers to quickly extract interfaces from C# classes. It provides a context menu option to generate an interface containing all the public method signatures of a class. The interface is created in the same directory as the class file, and the class definition is updated to implement the newly generated interface.
 
-## Features
+## **Features**
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+- Extract interfaces from C# classes.
+- Automatically generate the interface in the same directory as the class.
+- Update the class to implement the newly created interface.
+- Option to provide a custom name for the interface.
 
-For example if there is an image subfolder under your extension project workspace:
+## **Installation**
 
-\!\[feature X\]\(images/feature-x.png\)
+1. Open **VS Code**.
+2. Go to the **Extensions** view (`Ctrl+Shift+X`).
+3. Search for **"C# Extract Interface"**.
+4. Click **Install**.
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+## **Usage**
 
-## Requirements
+### **Context Menu Option**
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+1. Open a C# file in VS Code.
+2. Right-click on a `class` keyword (or place the cursor on it).
+3. In the context menu, select **"Extract Interface"** from the **Refactor** or **Quick Fix** options.
+4. Enter a name for the new interface (default is `I` followed by the class name).
+5. The extension will:
+   - Generate an interface with all public methods of the class.
+   - Create the interface in the same directory as the class.
+   - Modify the class to implement the new interface.
 
-## Extension Settings
+### **Example**
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+Given a class like this:
 
-For example:
+```csharp
+public class DiceManager
+{
+    public void RollDice() { }
+    public int GetScore() { return 0; }
+}
+```
 
-This extension contributes the following settings:
+After running the **"Extract Interface"** command, the extension will generate the following interface:
 
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
+```csharp
+public interface IDiceManager
+{
+    void RollDice();
+    int GetScore();
+}
+```
 
-## Known Issues
+The `DiceManager` class will be updated to:
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
-
-## Release Notes
-
-Users appreciate release notes as you update your extension.
-
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
+```csharp
+public class DiceManager : IDiceManager
+{
+    public void RollDice() { }
+    public int GetScore() { return 0; }
+}
+```
 
 ---
 
-## Following extension guidelines
+## **Troubleshooting**
 
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
+### **I don't see the "Extract Interface" option in the context menu.**
 
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
+Make sure you're right-clicking on the class declaration (`public class <ClassName>`) in the editor. If you are on a method or variable, the option won't appear.
 
-## Working with Markdown
+### **The generated interface is not updating the class.**
 
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+Ensure that the class is being correctly identified by the extension. If the class is not in the format `public class <ClassName>`, or if it's in a file that doesn't follow standard C# conventions, the extension may not function as expected.
