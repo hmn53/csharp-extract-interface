@@ -4,6 +4,9 @@
   "description": "Extracts interfaces from C# classes",
   "version": "1.0.0",
   "publisher": "Hatim Nalawala",
+  "repository": {
+    "url": "https://github.com/hmn53/csharp-extract-interface"
+  },
   "engines": {
     "vscode": "^1.95.0"
   },
