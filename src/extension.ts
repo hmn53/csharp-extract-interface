@@ -84,6 +84,50 @@ export function activate(context: vscode.ExtensionContext) {
   );
 
   context.subscriptions.push(extractInterfaceCommand);
+
+  // Register the CodeActionProvider
+  context.subscriptions.push(
+    vscode.languages.registerCodeActionsProvider(
+      { language: "csharp", scheme: "file" },
+      new ExtractInterfaceCodeActionProvider(),
+      {
+        providedCodeActionKinds:
+          ExtractInterfaceCodeActionProvider.providedCodeActionKinds,
+      }
+    )
+  );
+}
+
+class ExtractInterfaceCodeActionProvider implements vscode.CodeActionProvider {
+  static readonly providedCodeActionKinds = [vscode.CodeActionKind.Refactor];
+
+  public provideCodeActions(
+    document: vscode.TextDocument,
+    range: vscode.Range,
+    context: vscode.CodeActionContext,
+    token: vscode.CancellationToken
+  ): vscode.CodeAction[] | undefined {
+    const lineText = document.lineAt(range.start.line).text;
+
+    // Check if the line contains a class definition
+    if (/public\s+class\s+\w+/.test(lineText)) {
+      const action = new vscode.CodeAction(
+        "Extract Interface",
+        vscode.CodeActionKind.RefactorExtract
+      );
+
+      // Link this action to the csharp.extractInterface command
+      action.command = {
+        command: "csharp.extractInterface",
+        title: "Extract Interface",
+        arguments: [], // Pass additional arguments if needed
+      };
+
+      return [action];
+    }
+
+    return [];
+  }
 }
 
 async function generateInterfaceWithNamespaceAndEditClass(
@@ -105,7 +149,6 @@ async function generateInterfaceWithNamespaceAndEditClass(
   });
 
   if (!interfaceName) {
-    vscode.window.showErrorMessage("Interface name is required!");
     throw new Error("Interface name not provided");
   }
 
