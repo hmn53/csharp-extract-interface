@@ -2,20 +2,31 @@
   "name": "csharp-extract-interface",
   "displayName": "csharp-extract-interface",
   "description": "Extracts interfaces from C# classes",
-  "version": "0.0.1",
+  "version": "1.0.0",
+  "publisher": "Hatim Nalawala",
   "engines": {
     "vscode": "^1.95.0"
   },
   "categories": [
     "Programming Languages"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onLanguage:csharp"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
         "command": "csharp.extractInterface",
         "title": "Extract Interface"
+      }
+    ],
+    "languages": [
+      {
+        "id": "csharp",
+        "extensions": [
+          ".cs"
+        ]
       }
     ],
     "menus": {
