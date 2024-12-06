@@ -9,20 +9,13 @@ This extension allows C# developers to quickly extract interfaces from C# classe
 - Update the class to implement the newly created interface.
 - Option to provide a custom name for the interface.
 
-## **Installation**
-
-1. Open **VS Code**.
-2. Go to the **Extensions** view (`Ctrl+Shift+X`).
-3. Search for **"C# Extract Interface"**.
-4. Click **Install**.
-
 ## **Usage**
 
 ### **Context Menu Option**
 
 1. Open a C# file in VS Code.
-2. Right-click on a `class` keyword (or place the cursor on it).
-3. In the context menu, select **"Extract Interface"** from the **Refactor** or **Quick Fix** options.
+2. Press `Ctrl + .` on a `class` keyword (place the cursor on it).
+3. In the context menu, select **"Extract Interface"**.
 4. Enter a name for the new interface (default is `I` followed by the class name).
 5. The extension will:
    - Generate an interface with all public methods of the class.
@@ -41,7 +34,7 @@ public class DiceManager
 }
 ```
 
-After running the **"Extract Interface"** command, the extension will generate the following interface:
+After clicking on **"Extract Interface"**, it will generate the following interface:
 
 ```csharp
 public interface IDiceManager
@@ -67,7 +60,9 @@ public class DiceManager : IDiceManager
 
 ### **I don't see the "Extract Interface" option in the context menu.**
 
-Make sure you're right-clicking on the class declaration (`public class <ClassName>`) in the editor. If you are on a method or variable, the option won't appear.
+Make sure you're pressing `Ctrl + .` on the class declaration (`public class <ClassName>`) in the editor. If you are on a method or variable, the option won't appear.
+
+If `Ctrl + .` doesn't work, try right-clicking on the class declaration and selecting "Extract Interface" from the context menu.
 
 ### **The generated interface is not updating the class.**
 
