@@ -153,21 +153,25 @@ async function generateInterfaceWithNamespaceAndEditClass(
   const namespaceMatch = classText.match(/namespace\s+([\w.]+)/);
   const namespace = namespaceMatch ? namespaceMatch[1] : null;
 
-  // Extract public methods for the interface
+  // Match methods but exclude constructors and class declarations
   const methodRegex =
-    /public\s+(?!class|interface|struct|enum|delegate)\s*(\w+)\s+(\w+)\s*\(([^)]*)\)\s*{/g;
+    /public\s+(?:async\s+)?([\w<>\[\]]+)\s+(\w+)\s*(?:<([^>]*)>)?\s*\(([^)]*)\)\s*(?={)/g;
+
   const matches = [...classText.matchAll(methodRegex)];
 
-  const interfaceMethods = matches.map((match) => {
-    const [, returnType, methodName, params] = match;
-    return `    ${returnType} ${methodName}(${params});`;
-  });
+  const interfaceMethods = matches
+    .filter((match) => match[2] !== className) // Exclude constructors
+    .map((match) => {
+      const [, returnType, methodName, genericParams, params] = match;
+      const generic = genericParams ? `<${genericParams}>` : "";
+      return `    ${returnType} ${methodName}${generic}(${params});`;
+    });
 
   // Generate the interface code, including the namespace if available
   const interfaceCode = namespace
-    ? `namespace ${namespace} \n{\npublic interface ${interfaceName} \n{\n${interfaceMethods.join(
-        "\n"
-      )}\n}\n}`
+    ? `namespace ${namespace} \n{\n\tpublic interface ${interfaceName} \n\t{\n\t${interfaceMethods.join(
+        "\n\t"
+      )}\n\t}\n}`
     : `public interface ${interfaceName} \n{\n${interfaceMethods.join(
         "\n"
       )}\n}`;
@@ -188,7 +192,7 @@ function updateClassToImplementInterface(
   if (primaryConstructorRegex.test(classText)) {
     return classText.replace(
       primaryConstructorRegex,
-      `public class ${className}($1) : ${interfaceName}`
+      `public class ${className}($1) : ${interfaceName}\n`
     );
   }
 
@@ -199,7 +203,7 @@ function updateClassToImplementInterface(
 
   return classText.replace(
     classRegex,
-    `public class ${className} : ${interfaceName}`
+    `public class ${className} : ${interfaceName}\n`
   );
 }
 
