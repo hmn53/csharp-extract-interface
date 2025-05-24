@@ -76,33 +76,48 @@ async function extractInterface() {
   const fileName = path.basename(currentFilePath, ".cs"); // File name without extension
 
   try {
-    const { interfaceName, interfaceCode, namespace } =
+    const { interfaceNameFromPrompt, interfaceCode, namespace } =
       await generateInterfaceWithNamespaceAndEditClass(text, fileName);
 
+    if (!interfaceNameFromPrompt) {
+      // User cancelled the input
+      return;
+    }
+
+    const actualInterfaceName = path.basename(interfaceNameFromPrompt);
+    const relativeInterfacePath = path.dirname(interfaceNameFromPrompt);
+
+    const baseDirectory = path.dirname(document.uri.fsPath);
+    const targetDirectory = path.resolve(baseDirectory, relativeInterfacePath);
+
+    // Create target directory if it doesn't exist
+    // vscode.workspace.fs.createDirectory handles recursive creation.
+    await vscode.workspace.fs.createDirectory(vscode.Uri.file(targetDirectory));
+
     // Construct the new interface file path
-    const interfacePath = path.join(currentDirectory, `${interfaceName}.cs`);
+    const interfacePath = path.join(targetDirectory, `${actualInterfaceName}.cs`);
 
     // Check if the file already exists
     if (fs.existsSync(interfacePath)) {
       vscode.window.showWarningMessage(
-        `File "${interfaceName}.cs" already exists in the same folder. No file was created.`
+        `File "${actualInterfaceName}.cs" already exists in "${targetDirectory}". No file was created.`
       );
       return;
     }
 
     // Create the new file and write the interface code
-    const uri = vscode.Uri.file(interfacePath);
+    const interfaceUri = vscode.Uri.file(interfacePath);
     const workspaceEdit = new vscode.WorkspaceEdit();
-    workspaceEdit.createFile(uri, { ignoreIfExists: true });
-    workspaceEdit.insert(uri, new vscode.Position(0, 0), interfaceCode);
+    workspaceEdit.createFile(interfaceUri, { ignoreIfExists: true });
+    workspaceEdit.insert(interfaceUri, new vscode.Position(0, 0), interfaceCode);
 
     await vscode.workspace.applyEdit(workspaceEdit);
 
     // Modify the current file to implement the interface
     const updatedClassText = updateClassToImplementInterface(
       text,
-      fileName,
-      interfaceName
+      fileName, // class name remains the same
+      actualInterfaceName // use the actual name for the interface
     );
 
     const fullRange = new vscode.Range(
@@ -115,10 +130,10 @@ async function extractInterface() {
     await vscode.workspace.applyEdit(edit);
 
     // Show the interface file
-    await vscode.window.showTextDocument(uri);
+    await vscode.window.showTextDocument(interfaceUri);
 
     vscode.window.showInformationMessage(
-      `Interface ${interfaceName} created successfully and class updated to implement it.`
+      `Interface ${actualInterfaceName} created successfully in "${targetDirectory}" and class updated to implement it.`
     );
   } catch (error: any) {
     vscode.window.showErrorMessage(
@@ -131,7 +146,7 @@ async function generateInterfaceWithNamespaceAndEditClass(
   classText: string,
   currentFileName: string
 ): Promise<{
-  interfaceName: string;
+  interfaceNameFromPrompt: string | undefined; // Can be undefined if user cancels
   interfaceCode: string;
   namespace: string | null;
 }> {
@@ -140,14 +155,17 @@ async function generateInterfaceWithNamespaceAndEditClass(
   const defaultInterfaceName = `I${className}`;
 
   // Prompt for interface name
-  const interfaceName = await vscode.window.showInputBox({
-    prompt: "Enter the name for the interface",
+  const interfaceNameFromPrompt = await vscode.window.showInputBox({
+    prompt: "Enter the interface name (e.g., IMyService or ../Interfaces/IMyService)",
     value: defaultInterfaceName,
   });
 
-  if (!interfaceName) {
-    throw new Error("Interface name not provided");
+  if (!interfaceNameFromPrompt) {
+    // Return undefined for interfaceNameFromPrompt if user cancels
+    return { interfaceNameFromPrompt: undefined, interfaceCode: "", namespace: null };
   }
+
+  const actualInterfaceName = path.basename(interfaceNameFromPrompt);
 
   // Extract the namespace from the class file
   const namespaceMatch = classText.match(/namespace\s+([\w.]+)/);
@@ -169,14 +187,14 @@ async function generateInterfaceWithNamespaceAndEditClass(
 
   // Generate the interface code, including the namespace if available
   const interfaceCode = namespace
-    ? `namespace ${namespace} \n{\n\tpublic interface ${interfaceName} \n\t{\n\t${interfaceMethods.join(
+    ? `namespace ${namespace} \n{\n\tpublic interface ${actualInterfaceName} \n\t{\n\t${interfaceMethods.join(
         "\n\t"
       )}\n\t}\n}`
-    : `public interface ${interfaceName} \n{\n${interfaceMethods.join(
+    : `public interface ${actualInterfaceName} \n{\n${interfaceMethods.join(
         "\n"
       )}\n}`;
 
-  return { interfaceName, interfaceCode, namespace };
+  return { interfaceNameFromPrompt, interfaceCode, namespace };
 }
 
 function updateClassToImplementInterface(
@@ -184,27 +202,60 @@ function updateClassToImplementInterface(
   className: string,
   interfaceName: string
 ): string {
-  // Check for primary constructor
+  // Regex for primary constructors
+  // Group 1: `public class ClassName(...)` (the class declaration itself including params)
+  // Group 2: Primary constructor parameters (inside the parentheses)
+  // Group 3: The existing inheritance part including colon (e.g., ` : BaseClass, IExisting`)
+  // Group 4: The actual list of inherited classes/interfaces (e.g., `BaseClass, IExisting`)
   const primaryConstructorRegex = new RegExp(
-    `public\\s+class\\s+${className}\\(([^)]*)\\)\\s*(:\\s*[^\\s{]*)?`
+    `(public\\s+class\\s+${className}\\(([^)]*)\\))(\\s*:\\s*([^\\s{]+(?:\\s*,\\s*[^\\s{]+)*))?`
   );
 
-  if (primaryConstructorRegex.test(classText)) {
-    return classText.replace(
-      primaryConstructorRegex,
-      `public class ${className}($1) : ${interfaceName}\n`
-    );
+  let match = primaryConstructorRegex.exec(classText);
+  if (match) {
+    const classDeclarationPart = match[1]; // e.g., public class MyClass(string name)
+    // const params = match[2]; // Parameters, not directly needed for replacement string construction here
+    const existingInheritanceWithColon = match[3]; // e.g., ` : BaseClass, IExisting` or undefined
+    // const existingInheritanceList = match[4]; // e.g., `BaseClass, IExisting` or undefined
+
+    if (existingInheritanceWithColon) {
+      // Append to existing inheritance: preserves original spacing around colon, adds ", interfaceName"
+      return classText.replace(primaryConstructorRegex, `${classDeclarationPart}${existingInheritanceWithColon}, ${interfaceName}`);
+    } else {
+      // Add new inheritance: " : interfaceName"
+      return classText.replace(primaryConstructorRegex, `${classDeclarationPart} : ${interfaceName}`);
+    }
   }
 
-  // Handle regular classes
-  const classRegex = new RegExp(
-    `public\\s+class\\s+${className}\\s*(:\\s*[^\\s{]*)?`
+  // Regex for regular classes (no primary constructor parameters)
+  // Group 1: `public class ClassName` (the class keyword and name)
+  // Group 2: The existing inheritance part including colon (e.g., ` : BaseClass, IExisting`)
+  // Group 3: The actual list of inherited classes/interfaces (e.g., `BaseClass, IExisting`)
+  const regularClassRegex = new RegExp(
+    `(public\\s+class\\s+${className})(\\s*:\\s*([^\\s{]+(?:\\s*,\\s*[^\\s{]+)*))?`
   );
 
-  return classText.replace(
-    classRegex,
-    `public class ${className} : ${interfaceName}\n`
-  );
+  match = regularClassRegex.exec(classText);
+  if (match) {
+    const classDeclarationPart = match[1]; // e.g., public class MyClass
+    const existingInheritanceWithColon = match[2]; // e.g., ` : BaseClass, IExisting` or undefined
+    // const existingInheritanceList = match[3]; // e.g., `BaseClass, IExisting` or undefined
+
+    if (existingInheritanceWithColon) {
+      // Append to existing inheritance: preserves original spacing around colon, adds ", interfaceName"
+      return classText.replace(regularClassRegex, `${classDeclarationPart}${existingInheritanceWithColon}, ${interfaceName}`);
+    } else {
+      // Add new inheritance: " : interfaceName"
+      return classText.replace(regularClassRegex, `${classDeclarationPart} : ${interfaceName}`);
+    }
+  }
+
+  // Fallback: if no class pattern matches (should ideally not happen if called correctly)
+  // or if the class structure is unusual and not caught by the regexes.
+  // To prevent data loss, it's safer to return original text or throw an error.
+  // For this specific case, returning original text and relying on user to notice.
+  vscode.window.showWarningMessage(`Could not update class ${className} to implement ${interfaceName}. Please check the class structure.`);
+  return classText;
 }
 
 function deactivate() {}
