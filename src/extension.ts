@@ -1,6 +1,10 @@
 import * as vscode from "vscode";
 import * as path from "path";
 import * as fs from "fs";
+import {
+  generateInterfaceCode,
+  updateClassToImplementInterface,
+} from "./logic";
 
 export function activate(context: vscode.ExtensionContext) {
   const extractInterfaceCommand = vscode.commands.registerCommand(
@@ -177,134 +181,17 @@ async function generateInterfaceWithNamespaceAndEditClass(
     };
   }
 
-  const actualInterfaceName = path.basename(interfaceNameFromPrompt);
-
-  // Extract the namespace from the class file
-  const namespaceMatch = classText.match(/namespace\s+([\w.]+)/);
-  const namespace = namespaceMatch ? namespaceMatch[1] : null;
-
-  // Extract usings
-  const usingsMatch = classText.match(/^using\s+.*;/gm);
-  const usings = usingsMatch ? usingsMatch.join("\n") : "";
-
-  // Match methods but exclude constructors and class declarations
-  const methodRegex =
-    /public\s+(?:async\s+)?([\w<>\[\]]+)\s+(\w+)\s*(?:<([^>]*)>)?\s*\(([^)]*)\)\s*(?={)/g;
-
-  const matches = [...classText.matchAll(methodRegex)];
-
-  const interfaceMethods = matches
-    .filter((match) => match[2] !== className) // Exclude constructors
-    .map((match) => {
-      const [, returnType, methodName, genericParams, params] = match;
-      const generic = genericParams ? `<${genericParams}>` : "";
-      return `    ${returnType} ${methodName}${generic}(${params});`;
-    });
-
-  // Match events
-  const eventRegex = /public\s+event\s+([\w<>\[\]\.]+)\s+(\w+)\s*;/g;
-  const eventMatches = [...classText.matchAll(eventRegex)];
-
-  const interfaceEvents = eventMatches.map((match) => {
-    const [, eventType, eventName] = match;
-    return `    event ${eventType} ${eventName};`;
-  });
-
-  const allInterfaceMembers = [...interfaceMethods, ...interfaceEvents];
-
-  // Generate the interface code, including the namespace if available
-  const interfaceCode = namespace
-    ? `${usings}\n\nnamespace ${namespace} \n{\n\tpublic interface ${actualInterfaceName} \n\t{\n\t${allInterfaceMembers.join(
-        "\n\t"
-      )}\n\t}\n}`
-    : `${usings}\n\npublic interface ${actualInterfaceName} \n{\n${allInterfaceMembers.join(
-        "\n"
-      )}\n}`;
-
-  return { interfaceNameFromPrompt, interfaceCode, namespace };
-}
-
-function updateClassToImplementInterface(
-  classText: string,
-  className: string,
-  interfaceName: string
-): string {
-  // Regex for primary constructors
-  // Group 1: `public class ClassName(...)` (the class declaration itself including params)
-  // Group 2: Primary constructor parameters (inside the parentheses)
-  // Group 3: The existing inheritance part including colon (e.g., ` : BaseClass, IExisting`)
-  // Group 4: The actual list of inherited classes/interfaces (e.g., `BaseClass, IExisting`)
-  const primaryConstructorRegex = new RegExp(
-    `(public\\s+class\\s+${className}\\(([^)]*)\\))(\\s*:\\s*([^\\s{]+(?:\\s*,\\s*[^\\s{]+)*))?`
+  const result = generateInterfaceCode(
+    classText,
+    interfaceNameFromPrompt,
+    currentFileName
   );
 
-  let match = primaryConstructorRegex.exec(classText);
-  if (match) {
-    const classDeclarationPart = match[1]; // e.g., public class MyClass(string name)
-    // const params = match[2]; // Parameters, not directly needed for replacement string construction here
-    const existingInheritanceWithColon = match[3]; // e.g., ` : BaseClass, IExisting` or undefined
-    // const existingInheritanceList = match[4]; // e.g., `BaseClass, IExisting` or undefined
-
-    if (existingInheritanceWithColon) {
-      // Check if already implemented
-      if (existingInheritanceWithColon.includes(interfaceName)) {
-        return classText;
-      }
-      // Append to existing inheritance: preserves original spacing around colon, adds ", interfaceName"
-      return classText.replace(
-        primaryConstructorRegex,
-        `${classDeclarationPart}${existingInheritanceWithColon}, ${interfaceName}`
-      );
-    } else {
-      // Add new inheritance: " : interfaceName"
-      return classText.replace(
-        primaryConstructorRegex,
-        `${classDeclarationPart} : ${interfaceName}`
-      );
-    }
-  }
-
-  // Regex for regular classes (no primary constructor parameters)
-  // Group 1: `public class ClassName` (the class keyword and name)
-  // Group 2: The existing inheritance part including colon (e.g., ` : BaseClass, IExisting`)
-  // Group 3: The actual list of inherited classes/interfaces (e.g., `BaseClass, IExisting`)
-  const regularClassRegex = new RegExp(
-    `(public\\s+class\\s+${className})(\\s*:\\s*([^\\s{]+(?:\\s*,\\s*[^\\s{]+)*))?`
-  );
-
-  match = regularClassRegex.exec(classText);
-  if (match) {
-    const classDeclarationPart = match[1]; // e.g., public class MyClass
-    const existingInheritanceWithColon = match[2]; // e.g., ` : BaseClass, IExisting` or undefined
-    // const existingInheritanceList = match[3]; // e.g., `BaseClass, IExisting` or undefined
-
-    if (existingInheritanceWithColon) {
-      // Check if already implemented
-      if (existingInheritanceWithColon.includes(interfaceName)) {
-        return classText;
-      }
-      // Append to existing inheritance: preserves original spacing around colon, adds ", interfaceName"
-      return classText.replace(
-        regularClassRegex,
-        `${classDeclarationPart}${existingInheritanceWithColon}, ${interfaceName}`
-      );
-    } else {
-      // Add new inheritance: " : interfaceName"
-      return classText.replace(
-        regularClassRegex,
-        `${classDeclarationPart} : ${interfaceName}`
-      );
-    }
-  }
-
-  // Fallback: if no class pattern matches (should ideally not happen if called correctly)
-  // or if the class structure is unusual and not caught by the regexes.
-  // To prevent data loss, it's safer to return original text or throw an error.
-  // For this specific case, returning original text and relying on user to notice.
-  vscode.window.showWarningMessage(
-    `Could not update class ${className} to implement ${interfaceName}. Please check the class structure.`
-  );
-  return classText;
+  return {
+    interfaceNameFromPrompt,
+    interfaceCode: result.interfaceCode,
+    namespace: result.namespace,
+  };
 }
 
 function deactivate() {}
