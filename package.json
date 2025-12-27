@@ -22,6 +22,10 @@
       {
         "command": "csharp.extractInterface",
         "title": "Extract Interface"
+      },
+      {
+        "command": "csharp.addMethodToInterface",
+        "title": "Add Method to Interface"
       }
     ],
     "languages": [

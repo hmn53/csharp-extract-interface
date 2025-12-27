@@ -10,6 +10,12 @@ Essential refactoring tools and quality-of-life improvements for C# developers i
 - Update the class to implement the newly created interface
 - Option to provide a custom name and path for the interface
 
+### Add Method to Interface
+- Add a public method from a class to an interface it implements
+- Automatically finds interface files in the workspace
+- Supports multiple interfaces (prompts for selection)
+- Prevents duplicate method signatures
+
 ## **Usage**
 
 ### **Extract Interface**
@@ -54,6 +60,14 @@ public class DiceManager : IDiceManager
     public int GetScore() { return 0; }
 }
 ```
+
+### **Add Method to Interface**
+
+1. Open a C# file that implements an interface.
+2. Press `Ctrl + .` on a public method.
+3. Select **"Add 'MethodName' to Interface"**.
+4. If the class implements multiple interfaces, select which one to add the method to.
+5. The method signature will be added to the interface file.
 
 ---
 

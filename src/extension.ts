@@ -4,30 +4,42 @@ import * as fs from "fs";
 import {
   generateInterfaceCode,
   updateClassToImplementInterface,
+  parseMethodFromLine,
+  findImplementedInterfaces,
+  addMethodToInterface,
 } from "./logic";
 
 export function activate(context: vscode.ExtensionContext) {
+  // Register Extract Interface command
   const extractInterfaceCommand = vscode.commands.registerCommand(
     "csharp.extractInterface",
     extractInterface
   );
-
   context.subscriptions.push(extractInterfaceCommand);
 
-  // Register the CodeActionProvider
+  // Register Add Method to Interface command
+  const addMethodToInterfaceCommand = vscode.commands.registerCommand(
+    "csharp.addMethodToInterface",
+    addMethodToInterfaceHandler
+  );
+  context.subscriptions.push(addMethodToInterfaceCommand);
+
+  // Register the CodeActionProvider for all C# refactoring actions
   context.subscriptions.push(
     vscode.languages.registerCodeActionsProvider(
       { language: "csharp", scheme: "file" },
-      new ExtractInterfaceCodeActionProvider(),
+      new CSharpCodeActionProvider(),
       {
-        providedCodeActionKinds:
-          ExtractInterfaceCodeActionProvider.providedCodeActionKinds,
+        providedCodeActionKinds: CSharpCodeActionProvider.providedCodeActionKinds,
       }
     )
   );
 }
 
-class ExtractInterfaceCodeActionProvider implements vscode.CodeActionProvider {
+/**
+ * Unified CodeActionProvider for all C# refactoring actions
+ */
+class CSharpCodeActionProvider implements vscode.CodeActionProvider {
   static readonly providedCodeActionKinds = [vscode.CodeActionKind.Refactor];
 
   public provideCodeActions(
@@ -35,27 +47,44 @@ class ExtractInterfaceCodeActionProvider implements vscode.CodeActionProvider {
     range: vscode.Range,
     _context: vscode.CodeActionContext,
     _token: vscode.CancellationToken
-  ): vscode.CodeAction[] | undefined {
+  ): vscode.CodeAction[] {
+    const actions: vscode.CodeAction[] = [];
     const lineText = document.lineAt(range.start.line).text;
+    const fullText = document.getText();
 
-    // Check if the line contains a class definition
-    if (/public\s+class\s+\w+/.test(lineText)) {
+    // Extract Interface - triggers on class declaration
+    if (/public\s+(?:partial\s+)?class\s+\w+/.test(lineText)) {
       const action = new vscode.CodeAction(
         "Extract Interface",
         vscode.CodeActionKind.RefactorExtract
       );
-
-      // Link this action to the csharp.extractInterface command
       action.command = {
         command: "csharp.extractInterface",
         title: "Extract Interface",
         arguments: [],
       };
-
-      return [action];
+      actions.push(action);
     }
 
-    return [];
+    // Add Method to Interface - triggers on public method
+    const method = parseMethodFromLine(lineText, fullText);
+    if (method) {
+      const interfaces = findImplementedInterfaces(fullText);
+      if (interfaces.length > 0) {
+        const action = new vscode.CodeAction(
+          `Add '${method.name}' to Interface`,
+          vscode.CodeActionKind.RefactorExtract
+        );
+        action.command = {
+          command: "csharp.addMethodToInterface",
+          title: "Add Method to Interface",
+          arguments: [method, interfaces],
+        };
+        actions.push(action);
+      }
+    }
+
+    return actions;
   }
 }
 
@@ -192,6 +221,101 @@ async function generateInterfaceWithNamespaceAndEditClass(
     interfaceCode: result.interfaceCode,
     namespace: result.namespace,
   };
+}
+
+/**
+ * Handler for adding a method to an interface
+ */
+async function addMethodToInterfaceHandler(
+  method: { returnType: string; name: string; genericParams: string | null; parameters: string },
+  interfaces: string[]
+) {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) {
+    vscode.window.showErrorMessage("No active editor found!");
+    return;
+  }
+
+  const document = editor.document;
+  const currentDirectory = path.dirname(document.uri.fsPath);
+
+  // If multiple interfaces, let user choose
+  let targetInterface: string | undefined;
+  if (interfaces.length === 1) {
+    targetInterface = interfaces[0];
+  } else {
+    targetInterface = await vscode.window.showQuickPick(interfaces, {
+      placeHolder: "Select the interface to add the method to",
+    });
+  }
+
+  if (!targetInterface) {
+    return; // User cancelled
+  }
+
+  // Find the interface file
+  const interfaceFileName = `${targetInterface}.cs`;
+  const interfaceFiles = await vscode.workspace.findFiles(
+    `**/${interfaceFileName}`,
+    "**/node_modules/**"
+  );
+
+  if (interfaceFiles.length === 0) {
+    vscode.window.showErrorMessage(
+      `Could not find interface file '${interfaceFileName}' in workspace.`
+    );
+    return;
+  }
+
+  // Use the first match, or let user choose if multiple
+  let interfaceUri: vscode.Uri;
+  if (interfaceFiles.length === 1) {
+    interfaceUri = interfaceFiles[0];
+  } else {
+    const selected = await vscode.window.showQuickPick(
+      interfaceFiles.map((f) => ({
+        label: path.basename(f.fsPath),
+        description: path.dirname(f.fsPath),
+        uri: f,
+      })),
+      { placeHolder: "Multiple interface files found. Select one:" }
+    );
+    if (!selected) {
+      return;
+    }
+    interfaceUri = selected.uri;
+  }
+
+  // Read the interface file
+  const interfaceDocument = await vscode.workspace.openTextDocument(interfaceUri);
+  const interfaceCode = interfaceDocument.getText();
+
+  // Add the method to the interface
+  const updatedInterfaceCode = addMethodToInterface(interfaceCode, method);
+
+  if (updatedInterfaceCode === interfaceCode) {
+    vscode.window.showInformationMessage(
+      `Method '${method.name}' already exists in ${targetInterface}.`
+    );
+    return;
+  }
+
+  // Apply the edit
+  const fullRange = new vscode.Range(
+    new vscode.Position(0, 0),
+    new vscode.Position(interfaceDocument.lineCount, 0)
+  );
+
+  const edit = new vscode.WorkspaceEdit();
+  edit.replace(interfaceUri, fullRange, updatedInterfaceCode);
+  await vscode.workspace.applyEdit(edit);
+
+  // Save the interface file
+  await interfaceDocument.save();
+
+  vscode.window.showInformationMessage(
+    `Added '${method.name}' to ${targetInterface}.`
+  );
 }
 
 function deactivate() {}

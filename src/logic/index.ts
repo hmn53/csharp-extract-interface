@@ -25,3 +25,13 @@ export {
   PropertyInfo,
   FieldInfo,
 } from "./csharpParser";
+
+// Re-export add to interface utilities
+export {
+  generateMethodSignature,
+  generatePropertySignature,
+  addMethodToInterface,
+  addPropertyToInterface,
+  parseMethodFromLine,
+  findImplementedInterfaces,
+} from "./addToInterface";
