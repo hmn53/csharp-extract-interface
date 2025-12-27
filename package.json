@@ -1,11 +1,11 @@
 {
-  "name": "csharp-extract-interface",
-  "displayName": "csharp-extract-interface",
-  "description": "Extracts interfaces from C# classes",
+  "name": "csharp-essentials",
+  "displayName": "C# Essentials",
+  "description": "Essential refactoring tools and quality-of-life improvements for C# developers in VS Code",
   "version": "1.2.0",
   "publisher": "HatimNalawala",
   "repository": {
-    "url": "https://github.com/hmn53/csharp-extract-interface"
+    "url": "https://github.com/hmn53/csharp-essentials"
   },
   "engines": {
     "vscode": "^1.95.0"

@@ -1,17 +1,18 @@
-# **C# Extract Interface**
+# **C# Essentials**
 
-This extension allows C# developers to quickly extract interfaces from C# classes. It provides a context menu option to generate an interface containing all the public method signatures of a class. The interface is created in the same directory as the class file, and the class definition is updated to implement the newly generated interface.
+Essential refactoring tools and quality-of-life improvements for C# developers in VS Code.
 
 ## **Features**
 
-- Extract interfaces from C# classes.
-- Automatically generate the interface in the same directory as the class.
-- Update the class to implement the newly created interface.
-- Option to provide a custom name for the interface.
+### Extract Interface
+- Extract interfaces from C# classes
+- Automatically generate the interface in the same directory as the class
+- Update the class to implement the newly created interface
+- Option to provide a custom name and path for the interface
 
 ## **Usage**
 
-### **Context Menu Option**
+### **Extract Interface**
 
 1. Open a C# file in VS Code.
 2. Press `Ctrl + .` on a `class` keyword (place the cursor on it).
