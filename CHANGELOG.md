@@ -14,6 +14,7 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 ### Added
 - **Add Method to Interface**: Press Ctrl+. on a public method in a class that implements an interface to add the method signature to the interface
 - **Add Property to Interface**: Press Ctrl+. on a public property in a class that implements an interface to add the property signature to the interface
+- **Implement Interface**: Press Ctrl+. on a class declaration to generate stub implementations for all unimplemented interface members
 
 ## [1.2.0] - Previous Release
 

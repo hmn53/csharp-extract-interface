@@ -36,3 +36,16 @@ export {
   parsePropertyFromLine,
   findImplementedInterfaces,
 } from "./addToInterface";
+
+// Re-export implement interface utilities
+export {
+  InterfaceMembers,
+  parseInterfaceMembers,
+  generateMethodStub,
+  generatePropertyStub,
+  generateEventStub,
+  generateInterfaceStubs,
+  findClassInsertPosition,
+  insertInterfaceStubs,
+  filterUnimplementedMembers,
+} from "./implementInterface";

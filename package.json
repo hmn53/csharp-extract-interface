@@ -30,6 +30,10 @@
       {
         "command": "csharp.addPropertyToInterface",
         "title": "Add Property to Interface"
+      },
+      {
+        "command": "csharp.implementInterface",
+        "title": "Implement Interface"
       }
     ],
     "languages": [

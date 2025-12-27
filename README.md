@@ -22,6 +22,12 @@ Essential refactoring tools and quality-of-life improvements for C# developers i
 - Automatically finds interface files in the workspace
 - Prevents duplicate property signatures
 
+### Implement Interface
+- Generate stub implementations for all interface members
+- Automatically detects unimplemented methods, properties, and events
+- Generates proper method stubs with `throw new NotImplementedException()`
+- Supports multiple interfaces (select which one to implement)
+
 ## **Usage**
 
 ### **Extract Interface**
@@ -82,6 +88,51 @@ public class DiceManager : IDiceManager
 3. Select **"Add 'PropertyName' to Interface"**.
 4. If the class implements multiple interfaces, select which one to add the property to.
 5. The property signature will be added to the interface file.
+
+### **Implement Interface**
+
+1. Open a C# class that declares it implements an interface (e.g., `public class MyClass : IMyInterface`).
+2. Press `Ctrl + .` on the class declaration.
+3. Select **"Implement 'InterfaceName'"**.
+4. If the class implements multiple interfaces, each will be shown as a separate option.
+5. The extension will generate stubs for all unimplemented members.
+
+### **Example**
+
+Given an interface:
+
+```csharp
+public interface IDataService
+{
+    int Id { get; set; }
+    event EventHandler DataChanged;
+    Task<string> GetDataAsync(int id);
+}
+```
+
+And a class that doesn't implement it yet:
+
+```csharp
+public class DataService : IDataService
+{
+}
+```
+
+After clicking on **"Implement 'IDataService'"**, the class will be updated to:
+
+```csharp
+public class DataService : IDataService
+{
+    public int Id { get; set; }
+
+    public event EventHandler DataChanged;
+
+    public Task<string> GetDataAsync(int id)
+    {
+        throw new NotImplementedException();
+    }
+}
+```
 
 ---
 

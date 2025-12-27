@@ -9,6 +9,10 @@ import {
   findImplementedInterfaces,
   addMethodToInterface,
   addPropertyToInterface,
+  parseInterfaceMembers,
+  generateInterfaceStubs,
+  insertInterfaceStubs,
+  filterUnimplementedMembers,
 } from "./logic";
 
 export function activate(context: vscode.ExtensionContext) {
@@ -32,6 +36,13 @@ export function activate(context: vscode.ExtensionContext) {
     addPropertyToInterfaceHandler
   );
   context.subscriptions.push(addPropertyToInterfaceCommand);
+
+  // Register Implement Interface command
+  const implementInterfaceCommand = vscode.commands.registerCommand(
+    "csharp.implementInterface",
+    implementInterfaceHandler
+  );
+  context.subscriptions.push(implementInterfaceCommand);
 
   // Register the CodeActionProvider for all C# refactoring actions
   context.subscriptions.push(
@@ -106,6 +117,23 @@ class CSharpCodeActionProvider implements vscode.CodeActionProvider {
           command: "csharp.addPropertyToInterface",
           title: "Add Property to Interface",
           arguments: [property, interfaces],
+        };
+        actions.push(action);
+      }
+    }
+
+    // Implement Interface - triggers on class declaration with interface
+    const interfaces = findImplementedInterfaces(fullText);
+    if (interfaces.length > 0 && /class\s+\w+/.test(lineText)) {
+      for (const interfaceName of interfaces) {
+        const action = new vscode.CodeAction(
+          `Implement '${interfaceName}'`,
+          vscode.CodeActionKind.RefactorRewrite
+        );
+        action.command = {
+          command: "csharp.implementInterface",
+          title: "Implement Interface",
+          arguments: [interfaceName],
         };
         actions.push(action);
       }
@@ -434,6 +462,103 @@ async function addPropertyToInterfaceHandler(
 
   vscode.window.showInformationMessage(
     `Added '${property.name}' to ${targetInterface}.`
+  );
+}
+
+/**
+ * Handler for implementing interface stubs
+ */
+async function implementInterfaceHandler(interfaceName: string) {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) {
+    vscode.window.showErrorMessage("No active editor found!");
+    return;
+  }
+
+  const document = editor.document;
+  const classCode = document.getText();
+
+  // Find the interface file
+  const interfaceFileName = `${interfaceName}.cs`;
+  const interfaceFiles = await vscode.workspace.findFiles(
+    `**/${interfaceFileName}`,
+    "**/node_modules/**"
+  );
+
+  if (interfaceFiles.length === 0) {
+    vscode.window.showErrorMessage(
+      `Could not find interface file '${interfaceFileName}' in workspace.`
+    );
+    return;
+  }
+
+  // Use the first match, or let user choose if multiple
+  let interfaceUri: vscode.Uri;
+  if (interfaceFiles.length === 1) {
+    interfaceUri = interfaceFiles[0];
+  } else {
+    const selected = await vscode.window.showQuickPick(
+      interfaceFiles.map((f) => ({
+        label: path.basename(f.fsPath),
+        description: path.dirname(f.fsPath),
+        uri: f,
+      })),
+      { placeHolder: "Multiple interface files found. Select one:" }
+    );
+    if (!selected) {
+      return;
+    }
+    interfaceUri = selected.uri;
+  }
+
+  // Read the interface file
+  const interfaceDocument = await vscode.workspace.openTextDocument(interfaceUri);
+  const interfaceCode = interfaceDocument.getText();
+
+  // Parse interface members
+  const allMembers = parseInterfaceMembers(interfaceCode);
+
+  // Filter out already implemented members
+  const unimplementedMembers = filterUnimplementedMembers(allMembers, classCode);
+
+  // Check if there's anything to implement
+  const totalUnimplemented =
+    unimplementedMembers.methods.length +
+    unimplementedMembers.properties.length +
+    unimplementedMembers.events.length;
+
+  if (totalUnimplemented === 0) {
+    vscode.window.showInformationMessage(
+      `All members of '${interfaceName}' are already implemented.`
+    );
+    return;
+  }
+
+  // Generate stubs
+  const stubs = generateInterfaceStubs(unimplementedMembers);
+
+  // Insert stubs into class
+  const updatedClassCode = insertInterfaceStubs(classCode, stubs);
+
+  if (updatedClassCode === classCode) {
+    vscode.window.showErrorMessage(
+      "Could not find a suitable location to insert interface implementation."
+    );
+    return;
+  }
+
+  // Apply the edit
+  const fullRange = new vscode.Range(
+    new vscode.Position(0, 0),
+    new vscode.Position(document.lineCount, 0)
+  );
+
+  const edit = new vscode.WorkspaceEdit();
+  edit.replace(document.uri, fullRange, updatedClassCode);
+  await vscode.workspace.applyEdit(edit);
+
+  vscode.window.showInformationMessage(
+    `Implemented ${totalUnimplemented} member(s) from '${interfaceName}'.`
   );
 }
 
