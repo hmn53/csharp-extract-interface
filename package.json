@@ -26,6 +26,10 @@
       {
         "command": "csharp.addMethodToInterface",
         "title": "Add Method to Interface"
+      },
+      {
+        "command": "csharp.addPropertyToInterface",
+        "title": "Add Property to Interface"
       }
     ],
     "languages": [

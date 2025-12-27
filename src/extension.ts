@@ -5,8 +5,10 @@ import {
   generateInterfaceCode,
   updateClassToImplementInterface,
   parseMethodFromLine,
+  parsePropertyFromLine,
   findImplementedInterfaces,
   addMethodToInterface,
+  addPropertyToInterface,
 } from "./logic";
 
 export function activate(context: vscode.ExtensionContext) {
@@ -23,6 +25,13 @@ export function activate(context: vscode.ExtensionContext) {
     addMethodToInterfaceHandler
   );
   context.subscriptions.push(addMethodToInterfaceCommand);
+
+  // Register Add Property to Interface command
+  const addPropertyToInterfaceCommand = vscode.commands.registerCommand(
+    "csharp.addPropertyToInterface",
+    addPropertyToInterfaceHandler
+  );
+  context.subscriptions.push(addPropertyToInterfaceCommand);
 
   // Register the CodeActionProvider for all C# refactoring actions
   context.subscriptions.push(
@@ -79,6 +88,24 @@ class CSharpCodeActionProvider implements vscode.CodeActionProvider {
           command: "csharp.addMethodToInterface",
           title: "Add Method to Interface",
           arguments: [method, interfaces],
+        };
+        actions.push(action);
+      }
+    }
+
+    // Add Property to Interface - triggers on public property
+    const property = parsePropertyFromLine(lineText);
+    if (property) {
+      const interfaces = findImplementedInterfaces(fullText);
+      if (interfaces.length > 0) {
+        const action = new vscode.CodeAction(
+          `Add '${property.name}' to Interface`,
+          vscode.CodeActionKind.RefactorExtract
+        );
+        action.command = {
+          command: "csharp.addPropertyToInterface",
+          title: "Add Property to Interface",
+          arguments: [property, interfaces],
         };
         actions.push(action);
       }
@@ -315,6 +342,98 @@ async function addMethodToInterfaceHandler(
 
   vscode.window.showInformationMessage(
     `Added '${method.name}' to ${targetInterface}.`
+  );
+}
+
+/**
+ * Handler for adding a property to an interface
+ */
+async function addPropertyToInterfaceHandler(
+  property: { type: string; name: string },
+  interfaces: string[]
+) {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) {
+    vscode.window.showErrorMessage("No active editor found!");
+    return;
+  }
+
+  // If multiple interfaces, let user choose
+  let targetInterface: string | undefined;
+  if (interfaces.length === 1) {
+    targetInterface = interfaces[0];
+  } else {
+    targetInterface = await vscode.window.showQuickPick(interfaces, {
+      placeHolder: "Select the interface to add the property to",
+    });
+  }
+
+  if (!targetInterface) {
+    return; // User cancelled
+  }
+
+  // Find the interface file
+  const interfaceFileName = `${targetInterface}.cs`;
+  const interfaceFiles = await vscode.workspace.findFiles(
+    `**/${interfaceFileName}`,
+    "**/node_modules/**"
+  );
+
+  if (interfaceFiles.length === 0) {
+    vscode.window.showErrorMessage(
+      `Could not find interface file '${interfaceFileName}' in workspace.`
+    );
+    return;
+  }
+
+  // Use the first match, or let user choose if multiple
+  let interfaceUri: vscode.Uri;
+  if (interfaceFiles.length === 1) {
+    interfaceUri = interfaceFiles[0];
+  } else {
+    const selected = await vscode.window.showQuickPick(
+      interfaceFiles.map((f) => ({
+        label: path.basename(f.fsPath),
+        description: path.dirname(f.fsPath),
+        uri: f,
+      })),
+      { placeHolder: "Multiple interface files found. Select one:" }
+    );
+    if (!selected) {
+      return;
+    }
+    interfaceUri = selected.uri;
+  }
+
+  // Read the interface file
+  const interfaceDocument = await vscode.workspace.openTextDocument(interfaceUri);
+  const interfaceCode = interfaceDocument.getText();
+
+  // Add the property to the interface
+  const updatedInterfaceCode = addPropertyToInterface(interfaceCode, property);
+
+  if (updatedInterfaceCode === interfaceCode) {
+    vscode.window.showInformationMessage(
+      `Property '${property.name}' already exists in ${targetInterface}.`
+    );
+    return;
+  }
+
+  // Apply the edit
+  const fullRange = new vscode.Range(
+    new vscode.Position(0, 0),
+    new vscode.Position(interfaceDocument.lineCount, 0)
+  );
+
+  const edit = new vscode.WorkspaceEdit();
+  edit.replace(interfaceUri, fullRange, updatedInterfaceCode);
+  await vscode.workspace.applyEdit(edit);
+
+  // Save the interface file
+  await interfaceDocument.save();
+
+  vscode.window.showInformationMessage(
+    `Added '${property.name}' to ${targetInterface}.`
   );
 }
 

@@ -33,5 +33,6 @@ export {
   addMethodToInterface,
   addPropertyToInterface,
   parseMethodFromLine,
+  parsePropertyFromLine,
   findImplementedInterfaces,
 } from "./addToInterface";

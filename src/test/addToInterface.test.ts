@@ -1,9 +1,12 @@
 import * as assert from "assert";
 import {
   addMethodToInterface,
+  addPropertyToInterface,
   parseMethodFromLine,
+  parsePropertyFromLine,
   findImplementedInterfaces,
   generateMethodSignature,
+  generatePropertySignature,
 } from "../logic/addToInterface";
 
 suite("Add Method to Interface Tests", () => {
@@ -211,6 +214,127 @@ suite("Add Method to Interface Tests", () => {
 
       assert.ok(result.includes("string GetName();"));
       assert.ok(result.includes("void DoWork();"));
+    });
+  });
+});
+
+suite("Add Property to Interface Tests", () => {
+  suite("parsePropertyFromLine", () => {
+    test("Parses simple property", () => {
+      const line = "    public string Name { get; set; }";
+      const result = parsePropertyFromLine(line);
+
+      assert.ok(result);
+      assert.strictEqual(result.type, "string");
+      assert.strictEqual(result.name, "Name");
+    });
+
+    test("Parses readonly property", () => {
+      const line = "    public int Count { get; }";
+      const result = parsePropertyFromLine(line);
+
+      assert.ok(result);
+      assert.strictEqual(result.type, "int");
+      assert.strictEqual(result.name, "Count");
+    });
+
+    test("Parses generic type property", () => {
+      const line = "    public List<string> Items { get; set; }";
+      const result = parsePropertyFromLine(line);
+
+      assert.ok(result);
+      assert.strictEqual(result.type, "List<string>");
+      assert.strictEqual(result.name, "Items");
+    });
+
+    test("Parses nullable property", () => {
+      const line = "    public string? OptionalName { get; set; }";
+      const result = parsePropertyFromLine(line);
+
+      assert.ok(result);
+      assert.strictEqual(result.type, "string?");
+      assert.strictEqual(result.name, "OptionalName");
+    });
+
+    test("Returns null for non-property line", () => {
+      const line = "    private string _name;";
+      const result = parsePropertyFromLine(line);
+
+      assert.strictEqual(result, null);
+    });
+
+    test("Returns null for method", () => {
+      const line = "    public void DoSomething() {";
+      const result = parsePropertyFromLine(line);
+
+      assert.strictEqual(result, null);
+    });
+  });
+
+  suite("generatePropertySignature", () => {
+    test("Generates property signature", () => {
+      const property = {
+        type: "string",
+        name: "Name",
+      };
+      const result = generatePropertySignature(property);
+
+      assert.strictEqual(result, "string Name { get; set; }");
+    });
+
+    test("Generates generic type property signature", () => {
+      const property = {
+        type: "List<int>",
+        name: "Numbers",
+      };
+      const result = generatePropertySignature(property);
+
+      assert.strictEqual(result, "List<int> Numbers { get; set; }");
+    });
+  });
+
+  suite("addPropertyToInterface", () => {
+    test("Adds property to empty interface", () => {
+      const interfaceCode = `public interface IMyInterface
+{
+}`;
+      const property = {
+        type: "string",
+        name: "Name",
+      };
+      const result = addPropertyToInterface(interfaceCode, property);
+
+      assert.ok(result.includes("string Name { get; set; }"));
+    });
+
+    test("Adds property to interface with existing members", () => {
+      const interfaceCode = `public interface IMyInterface
+{
+    void DoWork();
+}`;
+      const property = {
+        type: "int",
+        name: "Count",
+      };
+      const result = addPropertyToInterface(interfaceCode, property);
+
+      assert.ok(result.includes("void DoWork();"));
+      assert.ok(result.includes("int Count { get; set; }"));
+    });
+
+    test("Does not add duplicate property", () => {
+      const interfaceCode = `public interface IMyInterface
+{
+    string Name { get; set; }
+}`;
+      const property = {
+        type: "string",
+        name: "Name",
+      };
+      const result = addPropertyToInterface(interfaceCode, property);
+
+      // Should be unchanged
+      assert.strictEqual(result, interfaceCode);
     });
   });
 });

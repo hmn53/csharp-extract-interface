@@ -168,3 +168,28 @@ export function findImplementedInterfaces(classCode: string): string[] {
     .map((s) => s.trim())
     .filter((s) => /^I[A-Z]/.test(s));
 }
+
+/**
+ * Parse a property from a line of C# code
+ * Returns null if the line doesn't contain a valid public property
+ */
+export function parsePropertyFromLine(line: string): PropertyInfo | null {
+  // Match public properties with get accessor
+  // Handles: public string Name { get; set; }
+  // Handles: public int Count { get; }
+  // Handles: public List<string> Items { get; set; }
+  const propertyRegex =
+    /public\s+([\w<>\[\]?]+)\s+(\w+)\s*{\s*get/;
+
+  const match = line.match(propertyRegex);
+  if (!match) {
+    return null;
+  }
+
+  const [, type, name] = match;
+
+  return {
+    type,
+    name,
+  };
+}
