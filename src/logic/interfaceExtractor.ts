@@ -1,4 +1,13 @@
+/**
+ * Interface extraction logic
+ */
 import * as path from "path";
+import {
+  extractNamespace,
+  extractUsings,
+  extractMethods,
+  extractEvents,
+} from "./csharpParser";
 
 export interface ExtractionResult {
   interfaceName: string;
@@ -6,6 +15,9 @@ export interface ExtractionResult {
   namespace: string | null;
 }
 
+/**
+ * Generate interface code from a C# class
+ */
 export function generateInterfaceCode(
   classText: string,
   interfaceName: string,
@@ -14,36 +26,19 @@ export function generateInterfaceCode(
   const className = currentFileName.replace(".cs", "");
   const actualInterfaceName = path.basename(interfaceName);
 
-  // Extract the namespace from the class file
-  const namespaceMatch = classText.match(/namespace\s+([\w.]+)/);
-  const namespace = namespaceMatch ? namespaceMatch[1] : null;
+  const namespace = extractNamespace(classText);
+  const usings = extractUsings(classText);
 
-  // Extract usings
-  const usingsMatch = classText.match(/^using\s+.*;/gm);
-  const usings = usingsMatch ? usingsMatch.join("\n") : "";
-
-  // Match methods but exclude constructors and class declarations
-  const methodRegex =
-    /public\s+(?:async\s+)?([\w<>\[\]]+)\s+(\w+)\s*(?:<([^>]*)>)?\s*\(([^)]*)\)\s*(?={)/g;
-
-  const matches = [...classText.matchAll(methodRegex)];
-
-  const interfaceMethods = matches
-    .filter((match) => match[2] !== className) // Exclude constructors
-    .map((match) => {
-      const [, returnType, methodName, genericParams, params] = match;
-      const generic = genericParams ? `<${genericParams}>` : "";
-      return `    ${returnType} ${methodName}${generic}(${params});`;
-    });
-
-  // Match events
-  const eventRegex = /public\s+event\s+([\w<>\[\]\.]+)\s+(\w+)\s*;/g;
-  const eventMatches = [...classText.matchAll(eventRegex)];
-
-  const interfaceEvents = eventMatches.map((match) => {
-    const [, eventType, eventName] = match;
-    return `    event ${eventType} ${eventName};`;
+  // Get methods excluding constructors
+  const methods = extractMethods(classText, className);
+  const interfaceMethods = methods.map((m) => {
+    const generic = m.genericParams ? `<${m.genericParams}>` : "";
+    return `    ${m.returnType} ${m.name}${generic}(${m.parameters});`;
   });
+
+  // Get events
+  const events = extractEvents(classText);
+  const interfaceEvents = events.map((e) => `    event ${e.type} ${e.name};`);
 
   const allInterfaceMembers = [...interfaceMethods, ...interfaceEvents];
 
@@ -59,6 +54,9 @@ export function generateInterfaceCode(
   return { interfaceName: actualInterfaceName, interfaceCode, namespace };
 }
 
+/**
+ * Update a class declaration to implement an interface
+ */
 export function updateClassToImplementInterface(
   classText: string,
   className: string,
